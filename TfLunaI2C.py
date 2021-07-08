@@ -414,7 +414,7 @@ class TfLunaI2C:
         :return: int
             Returns error code
         """
-        error = write_mod(TfLunaI2C.MODE_TRIGGER)
+        error = self.write_mode(TfLunaI2C.MODE_TRIGGER)
         return error
 
     def set_mode_continuous(self):
@@ -423,7 +423,7 @@ class TfLunaI2C:
         :return: int
             Returns error code
         """
-        error = write_mod(TfLunaI2C.MODE_CONTINUOUS)
+        error = self.write_mode(TfLunaI2C.MODE_CONTINUOUS)
         return error
 
     def trigger(self):
