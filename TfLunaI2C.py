@@ -28,8 +28,10 @@ the i2c address takes effect immediately.  If older versions do not follow this
 behavior, it is likely that another variable will need to be added to hold the
 new i2c address so that upon reboot, the device can re-establish communication.
 """
-
+import time
 from smbus2 import SMBus
+# use the following for RaspberryPi (smbus2 is used for syntax support on os x)
+#from smbus import SMbus
 
 class TfLunaI2C:
     """
@@ -101,10 +103,12 @@ class TfLunaI2C:
     FPS_10 = 0x0A
 
     # FPS (High Power Mode) #
+    FPS_25 = 0x19
     FPS_35 = 0x23
     FPS_50 = 0x32
     FPS_100 = 0x64
     FPS_125 = 0x7D
+    FPS_166 = 0xA6
     FPS_250 = 0xFA
 
     # Error Status Condition definitions #
@@ -142,26 +146,9 @@ class TfLunaI2C:
         :param bus: int
             Provide the bus number if different - defaults to 1
         """
-
         self.bus = bus
         self.i2cbus = SMBus(self.bus)
-        self.address = address
-        self.us = us
-        self.fps = self.read_frame_rate()
-        self.dist = 0
-        self.amp = 0
-        self.temp = 0
-        self.sn = self.read_serial_number()
-        self.version = self.read_firmware_version()
-        self.error = self.read_error()
-        self.ticks = self.read_ticks()
-        self.mode = self.read_mode()
-        self.enabled = self.read_enabled()
-        self.low_power = self.read_low_power_mode()
-        self.amp_threshold = self.read_amp_threshold()
-        self.dummy_dist = self.read_dummy_distance()
-        self.min_dist = self.read_minimum_distance()
-        self.max_dist = self.read_maximum_distance()
+        self._load_settings(address, us)
 
     def __str__(self):
         settings = ''
@@ -239,6 +226,33 @@ class TfLunaI2C:
         """
         fahrenheit = (1.8 * celsius) + 32.0
         return fahrenheit
+
+    def _load_settings(self, address=TfLunaI2C.DEFAULT_I2C_ADDR, us=True):
+        """
+        Load settings into object
+        :param address: byte
+            i2c device address, defaults to 0x10 (factory default)
+        :param us: boolean
+            Use imperial units of measurement and temperature
+        :return: n/a
+        """
+        self.address = address
+        self.us = us
+        self.fps = self.read_frame_rate()
+        self.dist = 0
+        self.amp = 0
+        self.temp = 0
+        self.sn = self.read_serial_number()
+        self.version = self.read_firmware_version()
+        self.error = self.read_error()
+        self.ticks = self.read_ticks()
+        self.mode = self.read_mode()
+        self.enabled = self.read_enabled()
+        self.low_power = self.read_low_power_mode()
+        self.amp_threshold = self.read_amp_threshold()
+        self.dummy_dist = self.read_dummy_distance()
+        self.min_dist = self.read_minimum_distance()
+        self.max_dist = self.read_maximum_distance()
 
     def _read_byte(self, register):
         """
@@ -652,6 +666,9 @@ class TfLunaI2C:
             Returns error code
         """
         error = self._write_byte(TfLunaI2C.RESTORE_FACTORY_DEFAULTS, TfLunaI2C.TRUE)
+        self.reboot()
+        print("Resetting to factory defaults")
+        time.sleep(1)
         self.address = TfLunaI2C.DEFAULT_I2C_ADDR
-        # TODO: Pause for reboot if necessary and refresh data
+        self._load_settings(self.address, self.us)
         return error
