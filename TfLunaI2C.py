@@ -408,6 +408,33 @@ class TfLunaI2C:
         error = self._write_word(TfLunaI2C.MODE, mode)
         return error
 
+    def set_mode_triggered(self):
+        """
+        Set to trigger mode
+        :return: int
+            Returns error code
+        """
+        error = write_mod(TfLunaI2C.MODE_TRIGGER)
+        return error
+
+    def set_mode_continuous(self):
+        """
+        Set to continuous mode
+        :return: int
+            Returns error code
+        """
+        error = write_mod(TfLunaI2C.MODE_CONTINUOUS)
+        return error
+
+    def trigger(self):
+        """
+        Trigger reading
+        :return: int
+            Returns error code
+        """
+        error = self._write_byte(TfLunaI2C.TRIG_ONE_SHOT, TfLunaI2C.TRUE)
+        return error
+
     def read_low_power_mode(self):
         """
         Read low power mode setting from device
