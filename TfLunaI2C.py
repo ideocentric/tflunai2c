@@ -29,9 +29,10 @@ behavior, it is likely that another variable will need to be added to hold the
 new i2c address so that upon reboot, the device can re-establish communication.
 """
 import time
-from smbus2 import SMBus
+from smbus import SMBus
 # use the following for RaspberryPi (smbus2 is used for syntax support on os x)
-#from smbus import SMbus
+# from smbus import SMbus
+
 
 class TfLunaI2C:
     """
@@ -56,12 +57,13 @@ class TfLunaI2C:
     VERSION_MINOR = 0x0B  # R
     VERSION_MAJOR = 0x0C  # R
     SERIAL_NUMBER = 0x10  # 0x10 to Ox1D, 14 bytes ASCII Codes
+    SIGNATURE = 0x3C  # 4 byte signature
 
     SAVE_SETTINGS = 0x20  # W -- Write 0x01 to save
-    COMMIT = 0x01  # use to write settings
-    REBOOT = 0x21  # W -- Write 0x02 to reboot.
-                   # Lidar not accessible during few seconds,
-                   # then register value resets automatically
+    COMMIT = 0x01   # use to write settings
+    REBOOT = 0x21   # W -- Write 0x02 to reboot.
+                    # Lidar not accessible during few seconds,
+                    # then register value resets automatically
     REBOOT_CODE = 0x02
 
     I2C_ADDR = 0x22  # W/R -- Range 0x08,0x77.
@@ -131,11 +133,11 @@ class TfLunaI2C:
     ERROR_NO_ERROR = 0
     ERROR_WRITE_FAILED = 100
     ERROR_BAD_ADDRESS = 101
+    ERROR_BAD_AMP_THRESHOLD = 102
+    ERROR_BAD_DIST_RANGE = 103
 
     TRUE = 0x01
     FALSE = 0x00
-
-    CM_2_FEET = 0.032808
 
     def __init__(self, address=DEFAULT_I2C_ADDR, us=True, bus=1):
         """
@@ -143,30 +145,51 @@ class TfLunaI2C:
             Initializes all parameters for the device at the provided or default address.
         :param address: byte
             Provide the i2c address, defaults to 0x10 (factory default) if not provided
+        :param us: boolean
+            Use imperial units for display - defaults to True - Use False for metric
         :param bus: int
             Provide the bus number if different - defaults to 1
         """
+        self.address = address
+        self.us = us
+        self.fps = 0
+        self.dist = 0
+        self.amp = 0
+        self.temp = 0
+        self.sn = ''
+        self.version = ''
+        self.signature = ''
+        self.error = 0
+        self.ticks = 0
+        self.mode = 0
+        self.enabled = 0
+        self.low_power = 0
+        self.amp_threshold = 0
+        self.dummy_dist = 0
+        self.min_dist = 0
+        self.max_dist = 0
         self.bus = bus
         self.i2cbus = SMBus(self.bus)
         self._load_settings(address, us)
 
     def __str__(self):
         settings = ''
-        settings += "address:    " + hex(self.address) + "\n"
-        settings += "sn:         " + self.sn + "\n"
-        settings += "version:    " + self.version + "\n"
+        settings += "address:     " + hex(self.address) + "\n"
+        settings += "sn:          " + self.sn + "\n"
+        settings += "signature:   " + self.signature + "\n"
+        settings += "version:     " + self.version + "\n"
         if self.mode == self.MODE_CONTINUOUS:
-            settings += "mode:       Continuous" + "\n"
+            settings += "mode:        Continuous" + "\n"
         else:
-            settings += "mode:       Trigger" + "\n"
+            settings += "mode:        Trigger" + "\n"
         if self.enabled == TfLunaI2C.TRUE:
-            settings += "enabled:    True" + "\n"
+            settings += "enabled:     True" + "\n"
         else:
-            settings += "enabled:    False" + "\n"
+            settings += "enabled:     False" + "\n"
         if self.low_power == TfLunaI2C.FALSE:
-            settings += "power mode: Normal" + "\n"
+            settings += "power mode:  Normal" + "\n"
         else:
-            settings += "power mode: Low Power" + "\n"
+            settings += "power mode:  Low Power" + "\n"
         settings += "fps:         " + str(self.fps) + "Hz\n"
         temp = self.temp * 0.01
         if self.us:
@@ -227,7 +250,7 @@ class TfLunaI2C:
         fahrenheit = (1.8 * celsius) + 32.0
         return fahrenheit
 
-    def _load_settings(self, address=TfLunaI2C.DEFAULT_I2C_ADDR, us=True):
+    def _load_settings(self, address=DEFAULT_I2C_ADDR, us=True):
         """
         Load settings into object
         :param address: byte
@@ -244,6 +267,7 @@ class TfLunaI2C:
         self.temp = 0
         self.sn = self.read_serial_number()
         self.version = self.read_firmware_version()
+        self.signature = self.read_signature()
         self.error = self.read_error()
         self.ticks = self.read_ticks()
         self.mode = self.read_mode()
@@ -253,6 +277,7 @@ class TfLunaI2C:
         self.dummy_dist = self.read_dummy_distance()
         self.min_dist = self.read_minimum_distance()
         self.max_dist = self.read_maximum_distance()
+        self.read_data()
 
     def _read_byte(self, register):
         """
@@ -501,6 +526,20 @@ class TfLunaI2C:
         error = self._write_word(TfLunaI2C.AMP_THR_LO, amp)
         return error
 
+    def set_amp_threshold(self, amp):
+        """
+        Sets amplitude threshold - checks for valid range
+        :param amp: int
+             Amplitude threshold to set to.  Valid range 0-32768
+        :return: int
+            Returns Error Code
+        """
+        if 0 <= amp <= 32768:
+            error = self.write_amp_threshold(amp)
+        else:
+            error = TfLunaI2C.ERROR_BAD_AMP_THRESHOLD
+        return error
+
     def read_dummy_distance(self):
         """
         Reads dummy distance setting from device
@@ -520,6 +559,17 @@ class TfLunaI2C:
             Error code
         """
         error = self._write_word(TfLunaI2C.DUMMY_DIST_LO, distance)
+        return error
+
+    def set_dummy_distance(self, distance):
+        """
+        Set dummy distance - valid range 0-65536 with a default to 0
+        :param distance: int
+            Distance to set for low amplitudes
+        :return: int
+            Returns error code
+        """
+        error = self.write_dummy_distance(distance)
         return error
 
     def read_minimum_distance(self):
@@ -562,6 +612,24 @@ class TfLunaI2C:
         error = self._write_word(TfLunaI2C.MAX_DIST_LO, distance)
         return error
 
+    def set_distance_limits(self, minimum, maximum):
+        """
+        Sets the minimum and maximum distance settings in centimeters
+        :param minimum: int
+            Minimum distance
+        :param maximum: int
+            Maximum distance
+        :return: int
+            Returns error code
+        """
+        if maximum <= minimum:
+            return TfLunaI2C.ERROR_BAD_DIST_RANGE
+        error = self.write_minimum_distance(minimum)
+        if error != 0:
+            return error
+        error = self.write_maximum_distance(maximum)
+        return error
+
     def read_enabled(self):
         """
         Reads enabled status 0x01 enabled, 0x00 disabled - version A05 of manual
@@ -582,6 +650,24 @@ class TfLunaI2C:
             Error code
         """
         error = self._write_byte(TfLunaI2C.ENABLED, enabled)
+        return error
+
+    def set_enabled(self):
+        """
+        Sets device to enabled
+        :return: int
+            Returns error code
+        """
+        error = self.write_enabled(TfLunaI2C.TRUE)
+        return error
+
+    def set_disabled(self):
+        """
+        Sets device to disabled
+        :return: int
+            Returns error code
+        """
+        error = self.write_enabled(TfLunaI2C.FALSE)
         return error
 
     def read_address(self):
@@ -721,3 +807,19 @@ class TfLunaI2C:
         self.address = TfLunaI2C.DEFAULT_I2C_ADDR
         self._load_settings(self.address, self.us)
         return error
+
+    def read_signature(self):
+        """
+        Reads signature from device
+        :return: string
+            Returns signature string
+        """
+        signature_list = []
+        register = TfLunaI2C.SIGNATURE
+        for i in range(4):
+            signature_list.append(self._read_byte(register))
+            register += 1
+        signature = ''
+        for c in signature_list:
+            signature = signature + chr(c)
+        return signature
