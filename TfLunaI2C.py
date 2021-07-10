@@ -367,6 +367,19 @@ class TfLunaI2C:
         error = self._write_word(TfLunaI2C.FPS_LO, frame_rate)
         return error
 
+    def set_frame_rate(self, frame_rate):
+        """
+        Writes frame rate to memory - requires save and reboot to take effect
+        Valid rates are from 1Hz - 250Hz.  Low power mode range is from 1-10Hz.
+        Calculated rates are from 500/n Hz where n is an int between 2-500
+        :param frame_rate: int
+            Frame rate to be set
+        :return: int
+            Error code
+        """
+        error = self.write_frame_rate(frame_rate)
+        return error
+
     def read_ticks(self):
         """
         Read ticks from device
@@ -455,6 +468,15 @@ class TfLunaI2C:
             Error code
         """
         error = self._write_byte(TfLunaI2C.MODE, mode)
+        return error
+
+    def set_low_power_mode(self):
+        """
+        Sets device into low power mode
+        :return: int
+            Returns error code
+        """
+        error = self.write_low_power_mode(TfLunaI2C.TRUE)
         return error
 
     def read_amp_threshold(self):

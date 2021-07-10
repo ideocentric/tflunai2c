@@ -105,15 +105,66 @@ TODO: The following indicates a place holders for documentation
 ## Continuous Mode Operations
 
 ### Set Continuous Mode
+To set into continuous mode (default configuration) perform the following.  This sets the device to scan at the specified frequency configured.
+```
+from TfLunaI2C import TFLunaI2C
 
+tfluna = TfLunaI2C()
+tfLuna.set_mode_continuous()
+tfLuna.save()
+tfLuna.reboot()
+```
 ### Set Frame Rate
+The frame rate is utilized when the device is in continuous mode.  Valid rates are 1Hz to 250Hz.  The rate is specified in as an integer value.  100Hz is the default frame rate from the factory.  Frame rates between 1-10Hz are utilized in Low Power mode.  If the device is in triggered mode, this value is ignored.
+
+Several frame rates have been defined for usage:
+####FPS (Low Power Mode)
+* FPS_1  = 1Hz
+* FPS_2  = 2Hz
+* FPS_3  = 3Hz
+* FPS_4  = 4Hz
+* FPS_5  = 5Hz
+* FPS_6  = 6Hz
+* FPS_7  = 7Hz
+* FPS_8  = 8Hz
+* FPS_9  = 9Hz
+* FPS_10 = 10Hz
+
+####FPS (High Power Mode)
+* FPS_25  = 25Hz
+* FPS_35  = 35Hz
+* FPS_50  = 50Hz
+* FPS_100 = 100Hz (Default)
+* FPS_125 = 125Hz
+* FPS_166 = 166Hz
+* FPS_250 = 250Hz
+
+```
+from TfLunaI2C import TFLunaI2C
+
+tfluna = TfLunaI2C()
+tfLuna.set_frame_rate(TfLunaI2C.FPS_50)
+tfLuna.save()
+tfLuna.reboot()
+```
 
 ### Set Low Power Mode
-
+Set device into low power mode.  Additionally insure that the frame rate is set to a supported frequency (1Hz - 10Hz).
+```
+tfluna = TfLunaI2C()
+tfLuna.set_low_power_mode()
+tfLuna.save()
+tfLuna.reboot()
+```
 ## Triggered Mode Operations
-
+Set device into triggered mode (default state).  Additionally, setting an appropriate frequency should be configured (1hz-250Hz).
 ### Set Triggered Mode
-
+```
+tfluna = TfLunaI2C()
+tfLuna.set_mode_triggered()
+tfLuna.save()
+tfLuna.reboot()
+```
 ### Trigger Reading
 
 ## Disable Lidar
